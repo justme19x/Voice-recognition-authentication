@@ -1,14 +1,15 @@
 import customtkinter as ctk
 import os
-from functii_voce import creaza_folder_utilizator, inregistreaza_voce, salveaza_voce, extract_mfcc, salveaza_caracteristici_mfcc, compara_caracteristici,sterge_inregistrare
+from functii_voce import creaza_folder_utilizator, inregistreaza_voce, salveaza_voce, extract_mfcc, salveaza_caracteristici_mfcc, compara_caracteristici,sterge_inregistrare,incarca_fisier_audio
+from tkinter.filedialog import askopenfilename
 
 class Aplicatie(ctk.CTk):
     def __init__(self):
         super().__init__()
 
-        self.title("Recunoastere vocala- autentificare")
+        self.title("Gestionează utilizatori")
         self.geometry("800x600")
-        self.base_path = 'C:\\Users\\calit\\Music\\MPT_Proiect\\Voce'
+        self.base_path = 'C:\\Users\\calit\\Music\\MPT COD\\Voce'
         self.nume_utilizator = None
         self.folder_utilizator = None
 
@@ -18,10 +19,10 @@ class Aplicatie(ctk.CTk):
         self.label = ctk.CTkLabel(self.main_menu, text="Selectează opțiunea:", font=("Arial", 18))
         self.label.pack(pady=20)
 
-        self.new_user_btn = ctk.CTkButton(self.main_menu, text="Utilizator Nou", command=self.utilizator_nou)
+        self.new_user_btn = ctk.CTkButton(self.main_menu, text="Utilizator nou", command=self.utilizator_nou)
         self.new_user_btn.pack(pady=10)
 
-        self.existing_user_btn = ctk.CTkButton(self.main_menu, text="Utilizator Existent", command=self.utilizator_existent)
+        self.existing_user_btn = ctk.CTkButton(self.main_menu, text="Utilizator existent", command=self.utilizator_existent)
         self.existing_user_btn.pack(pady=10)
 
     def utilizator_nou(self):
@@ -62,7 +63,7 @@ class Aplicatie(ctk.CTk):
                 if os.path.exists(self.folder_utilizator):
                     self.afiseaza_verificare()
                 else:
-                    self.afiseaza_mesaj(f"Utilizatorul '{nume}' nu există!")
+                    self.afiseaza_utilizator_inexistent(nume)
         else:
             self.afiseaza_mesaj("Nume invalid!")
 
@@ -76,6 +77,18 @@ class Aplicatie(ctk.CTk):
 
         self.record_btn = ctk.CTkButton(self.record_frame, text="Înregistreaza (10s)", command=self.inregistrare_voce)
         self.record_btn.pack(pady=10)
+
+        self.upload_btn = ctk.CTkButton(self.record_frame, text="Cauta in fisierele tale", command=self.apel_incarca_fisier_audio)
+        self.upload_btn.pack(pady=10)
+
+    
+    def apel_incarca_fisier_audio(self):
+        try:
+            mesaj = incarca_fisier_audio(self.folder_utilizator, self.nume_utilizator)
+            self.afiseaza_mesaj(mesaj)
+        except Exception as e:
+            self.afiseaza_mesaj(f"Eroare: {str(e)}")
+
 
     def inregistrare_voce(self):
         try:
@@ -115,10 +128,11 @@ class Aplicatie(ctk.CTk):
             )
 
             if rezultat:
-                self.afiseaza_mesaj(f"Vocea este similara, cu o similaritate: {similaritate:.2f}")
-                self.afiseaza_optiuni_autentificat()
+                mesaj = "Autentificare reușită!"
+                self.afiseaza_fereastra_rezultat(mesaj, succes=True, similaritate=similaritate)
             else:
-                self.afiseaza_mesaj(f"Vocea nu este similara. Similaritate: {similaritate:.2f}")
+                mesaj = "Autentificare nereușită."
+                self.afiseaza_fereastra_rezultat(mesaj, succes=False, similaritate=similaritate)
         except Exception as e:
             self.afiseaza_mesaj(f"Eroare la verificare: {str(e)}")
 
@@ -160,15 +174,22 @@ class Aplicatie(ctk.CTk):
         except Exception as e:
             self.afiseaza_mesaj(f"Eroare la înlocuire: {str(e)}")
 
-    def afiseaza_mesaj(self, mesaj):
+    def afiseaza_mesaj(self, mesaj,succes=None):
         for widget in self.winfo_children():
             widget.pack_forget()
 
         final_frame = ctk.CTkFrame(self)
         final_frame.pack(fill="both", expand=True)
 
+        if succes is not None:
+            culoare_fundal = "green" if succes else "red"
+            final_frame.configure(fg_color=culoare_fundal)
+
         label = ctk.CTkLabel(final_frame, text=mesaj, font=("Arial", 18))
         label.pack(pady=50)
+
+        back_btn = ctk.CTkButton(final_frame, text="Înapoi", command=self.revenire_meniu)
+        back_btn.pack(pady=20)
 
     def sterge_folder(self):
         """
@@ -187,6 +208,49 @@ class Aplicatie(ctk.CTk):
             widget.pack_forget()
 
         self.main_menu.pack(fill="both", expand=True)
+
+    def afiseaza_fereastra_rezultat(self, mesaj, succes, similaritate):
+        # fereastra noua
+        rezultat_fereastra = ctk.CTkToplevel(self)
+        rezultat_fereastra.title("Rezultatul autentificării")
+        rezultat_fereastra.geometry("400x300")
+        
+        # Eticheta rezultat
+        label_rezultat = ctk.CTkLabel(rezultat_fereastra, text=mesaj, font=("Arial", 18))
+        label_rezultat.pack(pady=20)
+        
+        # Eticheta procent
+        label_similaritate = ctk.CTkLabel(rezultat_fereastra, text=f"Similaritate: {similaritate * 100:.2f}%", font=("Arial", 16))
+        label_similaritate.pack(pady=10)
+        
+        # bucon
+        if succes:
+            continuare_btn = ctk.CTkButton(rezultat_fereastra, text="Continuă", command=lambda: [rezultat_fereastra.destroy(), self.afiseaza_optiuni_autentificat()])
+        else:
+            continuare_btn = ctk.CTkButton(rezultat_fereastra, text="Reîncearcă", command=lambda: rezultat_fereastra.destroy())
+        continuare_btn.pack(pady=20)
+
+
+
+    def afiseaza_utilizator_inexistent(self, nume):
+        for widget in self.winfo_children():
+            widget.pack_forget()
+
+        mesaj_frame = ctk.CTkFrame(self)
+        mesaj_frame.pack(fill="both", expand=True)
+
+        # mesaj
+        mesaj_label = ctk.CTkLabel(mesaj_frame, text=f"Utilizatorul '{nume}' nu există!", font=("Arial", 18))
+        mesaj_label.pack(pady=20)
+
+        # buton back la reintroducere nume
+        reintroducere_btn = ctk.CTkButton(
+            mesaj_frame, 
+            text="Reintrodu alt nume", 
+            command=lambda: [mesaj_frame.pack_forget(), self.afiseaza_formular("Utilizator Existent")]
+        )
+        reintroducere_btn.pack(pady=10)
+
 
 
 if __name__ == "__main__":
