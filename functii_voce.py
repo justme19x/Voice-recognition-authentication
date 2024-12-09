@@ -5,11 +5,11 @@ import soundfile as sf
 import librosa
 import numpy
 from sklearn.metrics.pairwise import cosine_similarity
-
 import shutil
+from scipy.signal import butter, lfilter
+from tkinter.filedialog import askopenfilename
 
-
-def creaza_folder_utilizator(base_path='C:\\Users\\calit\\Music\\MPT_Proiect\\Voce', nume_utilizator=None):
+def creaza_folder_utilizator(base_path='C:\\Users\\calit\\Music\\MPT COD\\Voce', nume_utilizator=None):
     user_folder = os.path.join(base_path, nume_utilizator)
     os.makedirs(user_folder, exist_ok=True)
     return user_folder
@@ -41,15 +41,31 @@ def salveaza_caracteristici_mfcc(mfcc_features, folder_utilizator, nume_utilizat
         f.write("\n".join(map(str, mfcc_features)))
 
 
+def filtru(audio, sample_rate, filter_type="low", cutoff=3000, order=5):
+    """
+    definim un filtru trece-jos-low pe semnalul specific audio
+    -> cutoff-> reprezinta frecventa de taiere(HZ)
+    -> order-> ordinul filtrului 1-9 in functie de nevoie 
+    """
+    cutoff_final=cutoff / (0.5*sample_rate)
+    b, a = butter(order, cutoff_final, btype=filter_type, analog=False)
+    audio_filtrat = lfilter(b, a, audio)
+    return audio_filtrat
+
 def preproceseaza_audio(audio, sample_rate):
+    #elimina pauzele
     audio_trimmed, _ = librosa.effects.trim(audio)
     if len(audio_trimmed) == 0:
         raise ValueError("Semnalul audio este gol după eliminarea pauzelor.")
+    
+    #aplicare filtru:
+    audio_trimmed = filtru(audio_trimmed, sample_rate, filter_type="low", cutoff=3000)
+    
     audio_normalized = librosa.util.normalize(audio_trimmed)
     return audio_normalized
 
 
-def compara_caracteristici(base_path, nume_utilizator, duration=10, sample_rate=44100, n_mfcc=20, prag=0.98):
+def compara_caracteristici(base_path, nume_utilizator, duration=10, sample_rate=44100, n_mfcc=20, prag=0.97):
     folder_utilizator = os.path.join(base_path, nume_utilizator)
     mfcc_path = os.path.join(folder_utilizator, f"{nume_utilizator}_mfcc.txt")
 
@@ -102,4 +118,20 @@ def sterge_inregistrare(folder_utilizator, nume_utilizator, sterge_folder=False)
     except Exception as e:
         print(f"Eroare la ștergerea fișierelor sau folderului: {e}")
 
-        
+
+def incarca_fisier_audio(folder_utilizator, nume_utilizator):
+    try:
+        fisier = askopenfilename(filetypes=[("Audio Files", "*.wav *.mp3 *.flac")])
+        if fisier:
+            # Încarcă fișierul audio
+            audio, sample_rate = librosa.load(fisier, sr=44100)
+            audio_preprocessed = preproceseaza_audio(audio, sample_rate)
+            mfcc_features = extract_mfcc(audio_preprocessed, sample_rate)
+            
+            # Salvează caracteristicile MFCC
+            salveaza_caracteristici_mfcc(mfcc_features, folder_utilizator, nume_utilizator)
+            return "Fisier audio încarcat cu succes!"
+        else:
+            return "Niciun fisier nu a fost selectat."
+    except Exception as e:
+        return f"Eroare la încărcarea fișierului audio: {str(e)}"
